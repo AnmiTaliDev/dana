@@ -1,11 +1,11 @@
-/* main.c - DANA kernel C entry point
+/* main.c - DANA kernel C entry point (Limine protocol)
  * Copyright (C) 2026 AnmiTaliDev <anmitalidev@nuros.org>
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #include <stdint.h>
 #include <stddef.h>
-#include <multiboot2.h>
+#include <limine.h>
 #include <hal/hal.h>
 #include <hal/x86_64/pmap.h>
 #include <libkern/printf.h>
@@ -13,68 +13,106 @@
 #include <vm/pmm.h>
 #include <vm/vm_map.h>
 
-void kmain(uint32_t magic, uint32_t info_ptr) {
+uint64_t hhdm_offset;
+
+__attribute__((section(".limine_requests_start")))
+static volatile uint64_t requests_start[] = LIMINE_REQUESTS_START_MARKER;
+
+__attribute__((section(".limine_requests_end")))
+static volatile uint64_t requests_end[] = LIMINE_REQUESTS_END_MARKER;
+
+__attribute__((section(".limine_requests")))
+static volatile uint64_t base_revision[] = LIMINE_BASE_REVISION(3);
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_hhdm_request hhdm_req = {
+    .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0,
+    .response = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_memmap_request memmap_req = {
+    .id = LIMINE_MEMMAP_REQUEST_ID,
+    .revision = 0,
+    .response = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_framebuffer_request fb_req = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
+    .revision = 0,
+    .response = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_executable_address_request exe_req = {
+    .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
+    .revision = 0,
+    .response = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_stack_size_request stack_req = {
+    .id = LIMINE_STACK_SIZE_REQUEST_ID,
+    .revision = 0,
+    .response = 0,
+    .stack_size = 256 * 1024
+};
+
+void kmain(void) {
     hal_early_console_init();
 
     kprintf("DANA: booting...\n");
     kprintf("DANA: DANA is Almost Not Apple\n");
 
-    if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
-        kprintf("DANA: ERROR: Invalid Multiboot2 magic: 0x%x\n", magic);
+    if (!LIMINE_BASE_REVISION_SUPPORTED(base_revision)) {
+        kprintf("DANA: ERROR: Limine base revision not supported\n");
         hal_halt();
     }
 
-    struct multiboot2_info *info = (void *)(uintptr_t)info_ptr;
-    struct multiboot2_tag *tag = (void *)(uintptr_t)(info_ptr + 8);
+    if (!hhdm_req.response) {
+        kprintf("DANA: ERROR: no HHDM response\n");
+        hal_halt();
+    }
+    hhdm_offset = hhdm_req.response->offset;
+    kprintf("DANA: HHDM offset = 0x%llx\n", (unsigned long long)hhdm_offset);
+
+    if (fb_req.response && fb_req.response->framebuffer_count > 0) {
+        struct limine_framebuffer *fb = fb_req.response->framebuffers[0];
+        if (fb->memory_model == LIMINE_FRAMEBUFFER_RGB) {
+            hal_console_set_framebuffer(
+                (uint64_t)(uintptr_t)fb->address,
+                (uint32_t)fb->width,
+                (uint32_t)fb->height,
+                (uint32_t)fb->pitch,
+                (uint8_t)fb->bpp);
+            kprintf("DANA: framebuffer %ux%u %ubpp\n",
+                    (unsigned)fb->width, (unsigned)fb->height, (unsigned)fb->bpp);
+        }
+    }
+
+    if (!memmap_req.response) {
+        kprintf("DANA: ERROR: no memory map\n");
+        hal_halt();
+    }
+    kprintf("DANA: memory map has %u entries\n",
+            (unsigned)memmap_req.response->entry_count);
+
+    uint64_t kern_phys_start = 0x200000;
+    uint64_t kern_phys_end   = 0x200000;
+    if (exe_req.response) {
+        kern_phys_start = exe_req.response->physical_base;
+        extern uint8_t _kernel_end;
+        kern_phys_end = kern_phys_start +
+            ((uint64_t)(uintptr_t)&_kernel_end - exe_req.response->virtual_base);
+    }
 
     hal_init();
     kprintf("DANA: GDT and IDT loaded\n");
-    kprintf("DANA: Multiboot2 info size = %u\n", info->total_size);
 
-    struct multiboot2_tag_mmap        *mmap_tag = NULL;
-    struct multiboot2_tag_framebuffer *fb_tag   = NULL;
-
-    while (tag->type != MULTIBOOT2_TAG_TYPE_END) {
-        switch (tag->type) {
-            case MULTIBOOT2_TAG_TYPE_BASIC_MEMINFO: {
-                struct multiboot2_tag_basic_meminfo *m = (void *)tag;
-                kprintf("DANA: lower memory: %u KB, upper memory: %u KB\n",
-                        m->mem_lower, m->mem_upper);
-                break;
-            }
-            case MULTIBOOT2_TAG_TYPE_MMAP: {
-                mmap_tag = (struct multiboot2_tag_mmap *)tag;
-                int entries = (int)((mmap_tag->size - sizeof(*mmap_tag)) / mmap_tag->entry_size);
-                kprintf("DANA: memory map has %d entries\n", entries);
-                break;
-            }
-            case MULTIBOOT2_TAG_TYPE_FRAMEBUFFER: {
-                fb_tag = (struct multiboot2_tag_framebuffer *)tag;
-                break;
-            }
-        }
-        tag = (void *)((uintptr_t)tag + ((tag->size + 7) & ~7));
-    }
-
-    if (fb_tag && fb_tag->framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB) {
-        hal_console_set_framebuffer(
-            fb_tag->framebuffer_addr,
-            fb_tag->framebuffer_width,
-            fb_tag->framebuffer_height,
-            fb_tag->framebuffer_pitch,
-            fb_tag->framebuffer_bpp);
-        kprintf("DANA: framebuffer %ux%u %ubpp\n",
-                fb_tag->framebuffer_width,
-                fb_tag->framebuffer_height,
-                fb_tag->framebuffer_bpp);
-    }
-
-    if (mmap_tag == NULL) {
-        kprintf("DANA: ERROR: no memory map from bootloader\n");
-        hal_halt();
-    }
-
-    pmm_init(mmap_tag);
+    pmm_init((struct limine_memmap_response *)memmap_req.response,
+             kern_phys_start, kern_phys_end);
     pmap_init();
     vm_map_init();
 

@@ -110,34 +110,22 @@ run: iso
 	qemu-system-x86_64 \
 	    -M q35 \
 	    -m 512M \
-	    -drive file=$(ISO),format=raw,if=ide \
+	    -cdrom $(ISO) \
+	    -boot d \
 	    -serial stdio \
 	    -d cpu_reset,guest_errors \
-	    -D qemu.log \
-	    -no-reboot \
-	    -no-shutdown
+	    -D qemu.log
 
 run-uefi: iso
 	qemu-system-x86_64 \
 	    -M q35 \
 	    -m 512M \
 	    -bios $(OVMF) \
-	    -drive file=$(ISO),format=raw,if=ide \
+	    -cdrom $(ISO) \
+	    -boot d \
 	    -serial stdio \
 	    -d cpu_reset,guest_errors \
-	    -D qemu.log \
-	    -no-reboot \
-	    -no-shutdown
-
-get-deps:
-	@mkdir -p $(LIMINE_DIR)
-	curl -Lo $(LIMINE_DIR)/limine-bios.sys      $(LIMINE_BASE)/limine-bios.sys
-	curl -Lo $(LIMINE_DIR)/limine-bios-cd.bin   $(LIMINE_BASE)/limine-bios-cd.bin
-	curl -Lo $(LIMINE_DIR)/limine-uefi-cd.bin   $(LIMINE_BASE)/limine-uefi-cd.bin
-	curl -Lo $(LIMINE_DIR)/BOOTX64.EFI          $(LIMINE_BASE)/BOOTX64.EFI
-	curl -Lo $(LIMINE_DIR)/limine-bios-hdd.h    $(LIMINE_BASE)/limine-bios-hdd.h
-	curl -Lo $(LIMINE_DIR)/limine.c             $(LIMINE_BASE)/limine.c
-	cc -O2 -o $(LIMINE_DIR)/limine              $(LIMINE_DIR)/limine.c
+	    -D qemu.log
 
 clean:
 	rm -rf $(BUILD) qemu.log

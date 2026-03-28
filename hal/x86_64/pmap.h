@@ -35,9 +35,11 @@
 #define PD_IDX(va)    (((uint64_t)(va) >> 21) & 0x1ff)
 #define PT_IDX(va)    (((uint64_t)(va) >> 12) & 0x1ff)
 
-/* Physical ↔ virtual for identity-mapped low memory (< 1 GB) */
-#define PHYS_TO_VIRT(pa)  ((void *)(uintptr_t)(pa))
-#define VIRT_TO_PHYS(va)  ((uint64_t)(uintptr_t)(va))
+/* Physical ↔ virtual via Limine HHDM.
+ * hhdm_offset is set in kmain() before any PHYS_TO_VIRT call. */
+extern uint64_t hhdm_offset;
+#define PHYS_TO_VIRT(pa)  ((void *)((uint64_t)(pa) + hhdm_offset))
+#define VIRT_TO_PHYS(va)  ((uint64_t)(uintptr_t)(va) - hhdm_offset)
 
 typedef uint64_t pte_t;
 

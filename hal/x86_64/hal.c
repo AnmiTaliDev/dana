@@ -15,7 +15,6 @@
 
 void hal_early_console_init(void) {
     serial_init();
-    vga_init();
 }
 
 void hal_console_set_framebuffer(uint64_t addr, uint32_t width, uint32_t height,
@@ -27,8 +26,6 @@ void hal_console_putc(char c) {
     serial_putc(c);
     if (fb_active())
         fb_putc(c);
-    else
-        vga_putc(c);
 }
 
 void hal_init(void) {

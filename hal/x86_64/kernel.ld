@@ -1,57 +1,45 @@
-/* hal/x86_64/kernel.ld - DANA x86_64 linker script
+/* hal/x86_64/kernel.ld - DANA x86_64 linker script (Limine protocol)
  * Copyright (C) 2026 AnmiTaliDev <anmitalidev@nuros.org>
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 OUTPUT_FORMAT("elf64-x86-64")
 OUTPUT_ARCH(i386:x86-64)
-ENTRY(_start)
+ENTRY(kmain)
 
-PHDRS
-{
-    boot_rx PT_LOAD FLAGS(5); /* R-E: multiboot header + boot code */
-    boot_rw PT_LOAD FLAGS(6); /* RW-: boot data (page tables, GDT) */
-    text    PT_LOAD FLAGS(5); /* R-E */
-    data    PT_LOAD FLAGS(6); /* RW- */
+KERN_PHYS = 0x200000;
+KERN_VIRT = 0xffffffff80200000;
+
+PHDRS {
+    text   PT_LOAD FLAGS(5);
+    rodata PT_LOAD FLAGS(4);
+    data   PT_LOAD FLAGS(6);
 }
 
 SECTIONS {
-    . = 0x100000;
-    .multiboot_header : {
-        KEEP(*(.multiboot_header))
-    } : boot_rx
+    . = KERN_VIRT;
 
-    .text.boot : {
-        *(.text.boot)
-    } : boot_rx
-
-    .data.boot ALIGN(4K) : {
-        *(.data.boot)
-    } : boot_rw
-
-    /* Kernel linked at higher-half, but loaded after .boot physically */
-    . = 0xffffffff80200000;
-    _kernel_start_v = .;
-    _kernel_start_p = 0x200000;
-
-    .text : AT(_kernel_start_p) {
+    .text : AT(KERN_PHYS) {
         *(.text .text.*)
-    } : text
+    } :text
 
-    .rodata ALIGN(4K) : AT(ADDR(.rodata) - _kernel_start_v + _kernel_start_p) {
+    .rodata ALIGN(4K) : AT(ADDR(.rodata) - KERN_VIRT + KERN_PHYS) {
         *(.rodata .rodata.*)
-    } : text
+    } :rodata
 
-    .data ALIGN(4K) : AT(ADDR(.data) - _kernel_start_v + _kernel_start_p) {
+    .data ALIGN(4K) : AT(ADDR(.data) - KERN_VIRT + KERN_PHYS) {
+        KEEP(*(.limine_requests_start))
+        KEEP(*(.limine_requests))
+        KEEP(*(.limine_requests_end))
         *(.data .data.*)
-    } : data
+    } :data
 
-    .bss ALIGN(4K) : AT(ADDR(.bss) - _kernel_start_v + _kernel_start_p) {
+    .bss ALIGN(4K) : AT(ADDR(.bss) - KERN_VIRT + KERN_PHYS) {
         _bss_start = .;
         *(.bss .bss.*)
         *(COMMON)
         _bss_end = .;
-    } : data
+    } :data
 
     _kernel_end = .;
 

@@ -8,14 +8,15 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <multiboot2.h>
+#include <limine.h>
 
 #define PMM_PAGE_SIZE   4096UL
 #define PMM_PAGE_SHIFT  12
 
 #define PMM_NULL        0UL
 
-void     pmm_init(struct multiboot2_tag_mmap *mmap);
+void     pmm_init(struct limine_memmap_response *mmap,
+                  uint64_t kern_phys_start, uint64_t kern_phys_end);
 uint64_t pmm_alloc_page(void);
 void     pmm_free_page(uint64_t paddr);
 size_t   pmm_free_pages(void);
