@@ -1,13 +1,6 @@
 # GNUmakefile - DANA kernel build system
 # Copyright (C) 2026 AnmiTaliDev <anmitalidev@nuros.org>
 # SPDX-License-Identifier: GPL-3.0-or-later
-#
-# Usage:
-#   make            - build the kernel ELF
-#   make iso        - build a bootable ISO image
-#   make run        - run in QEMU (requires make iso first)
-#   make get-deps   - download include/limine.h
-#   make clean      - remove build artifacts
 
 HAL ?= x86_64
 
@@ -46,9 +39,11 @@ LDFLAGS := -nostdlib \
            -z max-page-size=0x1000 \
            -T hal/$(HAL)/kernel.ld
 
-BUILD    := build
-ISOROOT  := $(BUILD)/isoroot
-LIMINE   := /usr/share/limine
+BUILD       := build
+ISOROOT     := $(BUILD)/isoroot
+LIMINE_DIR  := limine
+LIMINE_TOOL := $(LIMINE_DIR)/limine
+OVMF        := /usr/share/edk2/x64/OVMF.4m.fd
 
 SRCS_C  := main.c \
            kern/task.c \
@@ -69,7 +64,9 @@ OBJS    := $(patsubst %.c, $(BUILD)/%.o, $(SRCS_C)) \
 KERNEL  := $(BUILD)/dana.elf
 ISO     := $(BUILD)/dana.iso
 
-.PHONY: all build iso run get-deps clean
+LIMINE_BASE := https://raw.githubusercontent.com/limine-bootloader/limine/v10.x-binary
+
+.PHONY: all build iso run run-uefi get-deps clean
 
 all: build
 
@@ -89,35 +86,52 @@ $(BUILD)/%.o: %.S
 iso: build
 	rm -rf $(ISOROOT)
 	mkdir -p $(ISOROOT)/boot/limine $(ISOROOT)/EFI/BOOT
-	cp $(KERNEL)                          $(ISOROOT)/boot/dana.elf
-	cp hal/$(HAL)/limine.conf             $(ISOROOT)/boot/limine/limine.conf
-	cp $(LIMINE)/limine-bios.sys          $(ISOROOT)/boot/limine/
-	cp $(LIMINE)/limine-bios-cd.bin       $(ISOROOT)/boot/limine/
-	cp $(LIMINE)/limine-uefi-cd.bin       $(ISOROOT)/boot/limine/
-	cp $(LIMINE)/BOOTX64.EFI              $(ISOROOT)/EFI/BOOT/
+	cp $(KERNEL)                              $(ISOROOT)/boot/dana.elf
+	cp hal/$(HAL)/limine.conf                 $(ISOROOT)/boot/limine/limine.conf
+	cp $(LIMINE_DIR)/limine-bios.sys          $(ISOROOT)/boot/limine/
+	cp $(LIMINE_DIR)/limine-bios-cd.bin       $(ISOROOT)/boot/limine/
+	cp $(LIMINE_DIR)/limine-uefi-cd.bin       $(ISOROOT)/boot/limine/
+	cp $(LIMINE_DIR)/BOOTX64.EFI              $(ISOROOT)/EFI/BOOT/
 	xorriso -as mkisofs -R -r -J \
 	    -b boot/limine/limine-bios-cd.bin \
 	    -no-emul-boot -boot-load-size 4 -boot-info-table \
-	    -hfsplus -apm-block-size 2048 \
 	    --efi-boot boot/limine/limine-uefi-cd.bin \
 	    -efi-boot-part --efi-boot-image \
-	    --protective-msdos-label \
-	    $(ISOROOT) -o $(ISO) 2>/dev/null
-	limine bios-install $(ISO)
+	    $(ISOROOT) -o $(ISO)
+	$(LIMINE_TOOL) bios-install $(ISO)
 
 run: iso
 	qemu-system-x86_64 \
 	    -M q35 \
-	    -m 256M \
-	    -cdrom $(ISO) \
+	    -m 512M \
+	    -drive file=$(ISO),format=raw,if=ide \
 	    -serial stdio \
+	    -d cpu_reset,guest_errors \
+	    -D qemu.log \
+	    -no-reboot \
+	    -no-shutdown
+
+run-uefi: iso
+	qemu-system-x86_64 \
+	    -M q35 \
+	    -m 512M \
+	    -bios $(OVMF) \
+	    -drive file=$(ISO),format=raw,if=ide \
+	    -serial stdio \
+	    -d cpu_reset,guest_errors \
+	    -D qemu.log \
 	    -no-reboot \
 	    -no-shutdown
 
 get-deps:
-	@mkdir -p include
-	curl -Lo include/limine.h \
-	    https://raw.githubusercontent.com/limine-bootloader/limine/v8.x/limine.h
+	@mkdir -p $(LIMINE_DIR)
+	curl -Lo $(LIMINE_DIR)/limine-bios.sys      $(LIMINE_BASE)/limine-bios.sys
+	curl -Lo $(LIMINE_DIR)/limine-bios-cd.bin   $(LIMINE_BASE)/limine-bios-cd.bin
+	curl -Lo $(LIMINE_DIR)/limine-uefi-cd.bin   $(LIMINE_BASE)/limine-uefi-cd.bin
+	curl -Lo $(LIMINE_DIR)/BOOTX64.EFI          $(LIMINE_BASE)/BOOTX64.EFI
+	curl -Lo $(LIMINE_DIR)/limine-bios-hdd.h    $(LIMINE_BASE)/limine-bios-hdd.h
+	curl -Lo $(LIMINE_DIR)/limine.c             $(LIMINE_BASE)/limine.c
+	cc -O2 -o $(LIMINE_DIR)/limine              $(LIMINE_DIR)/limine.c
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) qemu.log
