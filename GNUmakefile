@@ -52,6 +52,8 @@ SRCS_C  := main.c \
            libkern/string.c \
            libkern/printf.c \
            vm/pmm.c \
+           vm/vm_map.c \
+           vm/vm_fault.c \
            hal/$(HAL)/serial.c \
            hal/$(HAL)/vga.c \
            hal/$(HAL)/gdt.c \

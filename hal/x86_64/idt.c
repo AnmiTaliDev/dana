@@ -10,6 +10,8 @@
 #include <hal/x86_64/gdt.h>
 #include <hal/x86_64/cpu.h>
 #include <libkern/printf.h>
+#include <vm/vm_fault.h>
+#include <vm/vm_map.h>
 #include <stdint.h>
 
 #define IDT_SIZE 256
@@ -107,7 +109,31 @@ DEFINE_ISR(4)  DEFINE_ISR(5)  DEFINE_ISR(6)  DEFINE_ISR(7)
 DEFINE_ISR_ERR(8)
 DEFINE_ISR(9)
 DEFINE_ISR_ERR(10) DEFINE_ISR_ERR(11) DEFINE_ISR_ERR(12)
-DEFINE_ISR_ERR(13) DEFINE_ISR_ERR(14)
+DEFINE_ISR_ERR(13)
+
+static void __attribute__((interrupt))
+isr_14(struct interrupt_frame *frame, uint64_t error_code)
+{
+    uint64_t cr2;
+    __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+
+    int fault_type = VM_FAULT_READ;
+    if (error_code & 2)  fault_type = VM_FAULT_WRITE;
+    if (error_code & 16) fault_type = VM_FAULT_EXECUTE;
+
+    vm_fault_return_t ret = vm_fault(kernel_map, (vm_address_t)cr2, fault_type);
+    if (ret == VM_FAULT_SUCCESS)
+        return;
+
+    kprintf("DANA: PAGE FAULT cr2=0x%lx error=0x%lx rip=0x%lx [%s]\n",
+            (unsigned long)cr2,
+            (unsigned long)error_code,
+            (unsigned long)frame->rip,
+            ret == VM_FAULT_BAD_ADDRESS ? "bad address" :
+            ret == VM_FAULT_PROTECTION  ? "protection"  : "oom");
+    cpu_disable_interrupts();
+    while (1) { cpu_halt(); }
+}
 DEFINE_ISR(15) DEFINE_ISR(16)
 DEFINE_ISR_ERR(17)
 DEFINE_ISR(18) DEFINE_ISR(19) DEFINE_ISR(20)

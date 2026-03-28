@@ -11,6 +11,7 @@
 #include <libkern/printf.h>
 #include <kern/task.h>
 #include <vm/pmm.h>
+#include <vm/vm_map.h>
 
 void kmain(uint32_t magic, uint32_t info_ptr) {
     hal_early_console_init();
@@ -57,6 +58,7 @@ void kmain(uint32_t magic, uint32_t info_ptr) {
 
     pmm_init(mmap_tag);
     pmap_init();
+    vm_map_init();
 
     kprintf("DANA: kernel task id = %u\n", kernel_task.task_id);
     kprintf("DANA: boot complete\n");
