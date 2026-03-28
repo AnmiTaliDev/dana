@@ -11,7 +11,16 @@ align 8
     dd .header_end - .header_start ; header length
     dd -(0xe85250d6 + 0 + (.header_end - .header_start)) ; checksum
 .header_start:
+    ; Framebuffer request (optional — GRUB will provide a linear framebuffer if possible)
+    align 8
+    dw 5    ; type = MULTIBOOT_HEADER_TAG_FRAMEBUFFER
+    dw 1    ; flags = optional
+    dd 20   ; size
+    dd 0    ; preferred width  (0 = no preference)
+    dd 0    ; preferred height (0 = no preference)
+    dd 32   ; preferred depth  (32 bpp)
     ; End tag
+    align 8
     dw 0
     dw 0
     dd 8

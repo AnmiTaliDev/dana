@@ -8,6 +8,7 @@
 #include <hal/hal.h>
 #include <hal/x86_64/serial.h>
 #include <hal/x86_64/vga.h>
+#include <hal/x86_64/fb.h>
 #include <hal/x86_64/gdt.h>
 #include <hal/x86_64/idt.h>
 #include <hal/x86_64/cpu.h>
@@ -17,9 +18,17 @@ void hal_early_console_init(void) {
     vga_init();
 }
 
+void hal_console_set_framebuffer(uint64_t addr, uint32_t width, uint32_t height,
+                                  uint32_t pitch, uint8_t bpp) {
+    fb_init(addr, width, height, pitch, bpp);
+}
+
 void hal_console_putc(char c) {
     serial_putc(c);
-    vga_putc(c);
+    if (fb_active())
+        fb_putc(c);
+    else
+        vga_putc(c);
 }
 
 void hal_init(void) {

@@ -56,6 +56,7 @@ SRCS_C  := main.c \
            vm/vm_fault.c \
            hal/$(HAL)/serial.c \
            hal/$(HAL)/vga.c \
+           hal/$(HAL)/fb.c \
            hal/$(HAL)/gdt.c \
            hal/$(HAL)/idt.c \
            hal/$(HAL)/hal.c \

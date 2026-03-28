@@ -31,7 +31,8 @@ void kmain(uint32_t magic, uint32_t info_ptr) {
     kprintf("DANA: GDT and IDT loaded\n");
     kprintf("DANA: Multiboot2 info size = %u\n", info->total_size);
 
-    struct multiboot2_tag_mmap *mmap_tag = NULL;
+    struct multiboot2_tag_mmap        *mmap_tag = NULL;
+    struct multiboot2_tag_framebuffer *fb_tag   = NULL;
 
     while (tag->type != MULTIBOOT2_TAG_TYPE_END) {
         switch (tag->type) {
@@ -47,8 +48,25 @@ void kmain(uint32_t magic, uint32_t info_ptr) {
                 kprintf("DANA: memory map has %d entries\n", entries);
                 break;
             }
+            case MULTIBOOT2_TAG_TYPE_FRAMEBUFFER: {
+                fb_tag = (struct multiboot2_tag_framebuffer *)tag;
+                break;
+            }
         }
         tag = (void *)((uintptr_t)tag + ((tag->size + 7) & ~7));
+    }
+
+    if (fb_tag && fb_tag->framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB) {
+        hal_console_set_framebuffer(
+            fb_tag->framebuffer_addr,
+            fb_tag->framebuffer_width,
+            fb_tag->framebuffer_height,
+            fb_tag->framebuffer_pitch,
+            fb_tag->framebuffer_bpp);
+        kprintf("DANA: framebuffer %ux%u %ubpp\n",
+                fb_tag->framebuffer_width,
+                fb_tag->framebuffer_height,
+                fb_tag->framebuffer_bpp);
     }
 
     if (mmap_tag == NULL) {
