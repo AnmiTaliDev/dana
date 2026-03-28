@@ -1,0 +1,14 @@
+build/
+
+*.o
+*.elf
+*.iso
+*.a
+
+*.swp
+*.swo
+*~
+.DS_Store
+
+.cache/
+compile_commands.json
