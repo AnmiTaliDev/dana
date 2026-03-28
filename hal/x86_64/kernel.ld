@@ -9,19 +9,25 @@ ENTRY(_start)
 
 PHDRS
 {
-    boot PT_LOAD FLAGS(7); /* RWE */
-    text PT_LOAD FLAGS(5); /* R-E */
-    data PT_LOAD FLAGS(6); /* RW- */
+    boot_rx PT_LOAD FLAGS(5); /* R-E: multiboot header + boot code */
+    boot_rw PT_LOAD FLAGS(6); /* RW-: boot data (page tables, GDT) */
+    text    PT_LOAD FLAGS(5); /* R-E */
+    data    PT_LOAD FLAGS(6); /* RW- */
 }
 
 SECTIONS {
-    /* Boot section at 1M (physical) */
     . = 0x100000;
-    .boot : {
+    .multiboot_header : {
         KEEP(*(.multiboot_header))
+    } : boot_rx
+
+    .text.boot : {
         *(.text.boot)
+    } : boot_rx
+
+    .data.boot ALIGN(4K) : {
         *(.data.boot)
-    } : boot
+    } : boot_rw
 
     /* Kernel linked at higher-half, but loaded after .boot physically */
     . = 0xffffffff80200000;
