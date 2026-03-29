@@ -63,7 +63,8 @@ SRCS_C  := main.c \
            hal/$(HAL)/hal.c \
            hal/$(HAL)/pmap.c
 
-SRCS_S  := hal/$(HAL)/boot_entry.S
+SRCS_S  := hal/$(HAL)/boot_entry.S \
+           hal/$(HAL)/thread_switch.S
 
 OBJS    := $(patsubst %.c, $(BUILD)/%.o, $(SRCS_C)) \
            $(patsubst %.S, $(BUILD)/%.o, $(SRCS_S))
