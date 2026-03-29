@@ -1,5 +1,9 @@
 # DANA
 
+> [!IMPORTANT]
+> This repository has been moved to **[danakernel/dana](https://github.com/danakernel/dana)**. 
+> Please update your remotes and follow the new link for the latest updates.
+
 **Dana is Almost Not Apple** — a Mach microkernel targeting Darwin/XNU ABI compatibility.
 
 ## Architecture
